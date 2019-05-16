@@ -1,0 +1,206 @@
+<!DOCTYPE html> 
+<meta charset = "utf-8">
+<style> 
+	#area1 {
+		width: 1000px;
+		height: 700px;
+		border:solid 1px black;
+	}
+
+	div.tooltip {	
+    	position: absolute;			
+        text-align: center;			
+    	width: 100px;					
+    	height: 53px;					
+    	padding: 2px;				
+    	font: 12px sans-serif;		
+    	background: lightsteelblue;	
+    	border: 0px;		
+    	border-radius: 8px;			
+    	pointer-events: none;			
+	}
+
+</style>
+
+
+<body>
+	<div id = "area1"> 
+
+	</div>
+
+	
+<script src = "//d3js.org/d3.v5.min.js"></script>
+<script type = "text/javascript">
+
+
+	var fileName = "1847246_firstpurchaseTwoMonthWithDate.csv";
+	var div = d3.select("#area1").append("div").attr("class", "tooltip").style("opacity", 0);
+	var margin = {top: 30, right: 90, left: 50, bottom: 170};
+	var margin2 = {top: 570, right: 90, left: 50, bottom: 30};
+	var width = 1000;
+	var height = 700;
+	var innerwidth = width - margin.left - margin.right;
+	var innerheight = height - margin.top - margin.bottom;
+	var innerheight2 = height - margin2.top - margin2.bottom;
+	var svg = d3.select("#area1").append("svg").attr("width", width).attr("height", height);
+	var parseDate = d3.timeParse("%Y-%m-%d %H:%M:%S");
+	var colors = ["#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f", "#e5c494", "#b3b3b3", "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6" ,"#6a3d9a","#ffff99", "#b15928", "#8dd3c7", "#ffffb3", "#bebada", "#fb8072" ,"#80b1d3", "#fdb462", "#b3de69", "#fccde5","#d9d9d9" ,"#bc80bd", "#ccebc5", "#ffed6f"];
+	var color = d3.scaleOrdinal();
+	var padding = 20;
+	var xScale = d3.scaleTime().range([padding, innerwidth - padding]);
+	var xScale2 = d3.scaleTime().range([padding, innerwidth - padding]);
+	var yScale = d3.scaleBand().rangeRound([innerheight- padding , padding]);
+	var yScale2 = d3.scaleBand().range([innerheight2- padding , padding]);
+	var xAxis = d3.axisBottom(xScale).tickFormat(d3.timeFormat("%m/%d/%y"));
+	var xAxis2 = d3.axisBottom(xScale2).tickFormat(d3.timeFormat("%m/%d/%y"));
+	var yAxis = d3.axisLeft(yScale);
+	
+	var brush = d3.brushX().extent([[0, 0], [innerwidth, innerheight2]]).on("brush end", brushed);
+
+	var line = d3.line().x(function(d){return xScale(d.date);}).y(function(d){return yScale(d.id) + yScale.bandwidth()/2});
+	var line2 = d3.line().x(function(d){return xScale2(d.date);}).y(function(d){return yScale2(d.id) + yScale2.bandwidth()/2});
+
+	svg.append("defs").append("clipPath").attr("id", "clip").append("rect").attr("width", innerwidth).attr("height", innerheight);
+
+	var focus = svg.append("g").attr("class", "focus").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+	var context = svg.append("g").attr("class", "context").attr("transform", "translate(" + margin2.left + "," + margin2.top + ")");
+
+	d3.csv(fileName).then(function(d){
+		var data = [];
+		for(var i = 0; i < d.length; i++){
+				data[i] = {source: d[i].source, etype: d[i].etype, target: d[i].target, date: parseDate(d[i].date)}
+		}
+
+		xScale.domain(d3.extent(data, function(d){return d.date;}));
+		//For Colors
+		var uniqueNodes = [];
+		for(var s = 0; s < data.length; s++){
+			var find = false;
+			var index = 0;
+			while(!find && index < uniqueNodes.length){
+				if(uniqueNodes[index] === data[s].source){
+					find = true;
+				}
+				else{
+					index++;
+				}
+			}
+			if(!find){
+				uniqueNodes.push(data[s].source);
+			}
+		}
+		for(var a = 0; a < data.length; a++){
+			var find2 = false;
+			var index2 = 0;
+			while(!find2 && index2 < uniqueNodes.length){
+				if(uniqueNodes[index2] === data[a].target){
+					find2 = true;
+				}
+				else{
+					index2++;
+				}
+			}
+			if(!find2){
+				uniqueNodes.push(data[a].target);
+			}
+		}
+		color.domain(uniqueNodes);
+		color.range(colors);
+		yScale.domain(uniqueNodes);
+		xScale2.domain(xScale.domain());
+		yScale2.domain(yScale.domain());
+		//For Line && Nodes
+		var links = [];
+		var nodes = [];
+  		for(var q = 0; q < data.length; q++){
+  			links.push({id: q, value: [{id: data[q].source, date: data[q].date},{id: data[q].target, date: data[q].date}], etype: data[q].etype});
+  			nodes.push({id: data[q].source, date: data[q].date, etype: data[q].etype});
+  			nodes.push({id: data[q].target, date: data[q].date, etype: data[q].etype});
+  		}
+  		//Focus --> Link & Node
+  		var focuslineGroups = focus.selectAll("path").data(links).enter().append("g");
+    	var focuslines = focuslineGroups.append("path").attr("class","line").attr("d", function(d) { return line(d.value); }).style("stroke", function(d) {return transfer(d.etype);}).attr("clip-path", "url(#clip)");
+    	var dotsFocus = focus.append("g");
+    		dotsFocus.attr("clip-path", "url(#clip)");
+    		dotsFocus.selectAll("circle").data(nodes).enter().append("circle").attr('class', 'dot').attr("id", function(d){return d.id + "-" + d.date + "-" + d.etype;}).attr("r",7.5).style("opacity", .5).attr("cx", function(d) { return xScale(d.date); }).attr("cy", function(d){return (yScale(d.id) + yScale.bandwidth()/2);}).style("fill", function(d){return color(d.id)}).on("mouseover", mouseover).on("mouseout", mouseout);
+    	//Context --> Link & Node
+  		var contextlineGroups = context.selectAll("path").data(links).enter().append("g");
+  		var contextLines = contextlineGroups.append("path")
+        		.attr("class", "line")
+        		.attr("d", function(d) { return line2(d.value); })
+        		.style("stroke", function(d) {return transfer(d.etype);})
+        		.attr("clip-path", "url(#clip)");
+        var dotsContext = context.append("g");
+        	dotsContext.attr("clip-path", "url(#clip)");
+        	dotsContext.selectAll("circle").data(nodes).enter().append("circle").attr('class', 'dot').attr("r",3.5).style("opacity", .5).attr("cx", function(d) { return xScale2(d.date); }).attr("cy", function(d){return (yScale2(d.id) + yScale2.bandwidth()/2);}).style("fill", function(d){return color(d.id)});
+
+  		//x-Axis, y-Axis 
+  		focus.append("g").attr("class", "axis axis--x").attr("transform", "translate(0," + (innerheight - padding) + ")").call(xAxis);
+  		focus.append("g").attr("class", "axis axis--y").attr("transform", "translate(" + padding + ",0)").call(yAxis);
+
+  		context.append("g").attr("class", "axis axis--x").attr("transform", "translate(0," + (innerheight2 - padding) + ")").call(xAxis2);
+  		context.append("g").attr("class", "brush").call(brush).call(brush.move, xScale.range()); 
+
+  		// x-Label, y-Label
+  		focus.append("text").attr("transform", "rotate(-90)").attr("y", 0 - margin.left).attr("x", 0 - (innerheight/2)).attr("dy", "1em").style("text-anchor", "middle").text("Employee - ID");	
+  		context.append("text").attr("transform", "translate(" + (innerwidth)/2 + "," + (height - margin2.top - 10) + ")").style("text-anchor", "middle").text("Date");
+	});
+
+	function brushed() {
+  		var selection = d3.event.selection;
+  		xScale.domain(selection.map(xScale2.invert, xScale2));
+  		focus.selectAll("path.line").attr("d", function(d){return line(d.value)});
+  		focus.selectAll("circle").attr("cx", function(d){return xScale(d.date)}).attr("cy", function(d){return yScale(d.id) + yScale.bandwidth()/2});
+  		focus.select(".axis--x").call(xAxis);
+	}
+	var div = d3.select("#area1").append("div").attr("class", "tooltip").style("opacity", 0);
+	function mouseover(){
+		d3.select(this).transition().duration(750).attr("r", 16);
+		var id = d3.select(this).attr("id");
+		var info = id.split("-");
+		var name = info[0];
+		var date = info[1].split(" ");
+		var type = info[3];
+		div.transition().duration(200).style("opacity", .9);
+      	div.html("ID: " + name + "<br/>" + date[0] + " " + date[1] + " " + date[2] + " " + date[3] + " " + date[4] +  "<br/>" +  "type: " + transferTwo(type)).style("left", (d3.event.pageX) + "px").style("top", (d3.event.pageY - 28) + "px");
+	}
+
+	function mouseout(){
+		d3.select(this).transition().duration(750).attr("r", 7.5);
+		div.transition().duration(500).style("opacity", 0);	
+	}
+
+//Line Colors
+function transfer(d){
+		if(d == 0){
+			return "#1f77b4";
+		}
+		else if(d == 1){
+			return "#ff7f0e";
+		}
+		else if(d == 2){
+			return "#2ca02c";
+		}
+		else if(d == 3){
+			return "#d62728";
+		}
+}
+
+function transferTwo(d){
+		if(d == 0){
+			return "call";
+		}
+		else if(d == 1){
+			return "email";
+		}
+		else if(d == 2){
+			return "purchase";
+		}
+		else if(d == 3){
+			return "meeting";
+		}
+}
+
+
+</script>
+</body>
